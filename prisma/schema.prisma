@@ -1,0 +1,632 @@
+// Sistem Manajemen Surat & Disposisi — Prisma schema
+// Migrations live in prisma/migrations; apply with `npm run db:migrate` (prisma migrate deploy).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../apps/api/src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- enums
+
+enum LetterStatus {
+  DRAFT
+  REGISTERED
+  AWAITING_DISPOSITION
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_REVIEW
+  NEEDS_REVISION
+  COMPLETED
+  ARCHIVED
+  CANCELLED
+}
+
+enum ProcessingStatus {
+  UPLOADED
+  PROCESSING
+  NEEDS_REVIEW
+  PROCESSING_FAILED
+  VERIFIED
+}
+
+enum Confidentiality {
+  BIASA
+  TERBATAS
+  RAHASIA
+}
+
+enum Priority {
+  RENDAH
+  NORMAL
+  TINGGI
+  SEGERA
+}
+
+enum LetterType {
+  UNDANGAN
+  PEMBERITAHUAN
+  PERMOHONAN
+  EDARAN
+  TUGAS
+  KETERANGAN
+  NOTA_DINAS
+  PENGANTAR
+  LAPORAN
+  LAINNYA
+}
+
+enum DispositionStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum AssignmentStatus {
+  ASSIGNED
+  IN_PROGRESS
+  WAITING_REVIEW
+  NEEDS_REVISION
+  COMPLETED
+  CANCELLED
+}
+
+enum WorkUpdateType {
+  STARTED
+  PROGRESS
+  SUBMITTED
+  APPROVED
+  REVISION_REQUESTED
+  CANCELLED
+  REASSIGNED
+}
+
+enum OutgoingType {
+  UNDANGAN
+  TUGAS
+  KETERANGAN
+  NOTA_DINAS
+  PENGANTAR
+}
+
+enum OutgoingStatus {
+  DRAFT
+  WAITING_REVIEW
+  NEEDS_REVISION
+  APPROVED
+  FINAL
+  CANCELLED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum AiProvider {
+  GEMINI
+  CLAUDE
+  TESSERACT
+}
+
+enum ExtractionMethod {
+  LOCAL_TEXT
+  AI_TEXT
+  AI_VISION
+  LOCAL_OCR
+  MOCK
+}
+
+enum DocumentKind {
+  SOURCE
+  ATTACHMENT
+  EVIDENCE
+  GENERATED
+  TEMPLATE
+}
+
+enum CorrectionSource {
+  VERIFICATION
+  POST_VERIFICATION_EDIT
+}
+
+// ---------------------------------------------------------------- identity & access
+
+model Unit {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+model User {
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  email              String?   @unique
+  fullName           String
+  position           String?
+  passwordHash       String
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  failedLoginCount   Int       @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+  unitId             String?
+  unit               Unit?     @relation(fields: [unitId], references: [id])
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  deletedAt          DateTime?
+
+  roles                UserRole[]
+  sessions             Session[]
+  resetTokens          PasswordResetToken[]
+  createdLetters       IncomingLetter[]     @relation("LetterCreatedBy")
+  verifiedLetters      IncomingLetter[]     @relation("LetterVerifiedBy")
+  forwardedLetters     IncomingLetter[]     @relation("LetterForwardedTo")
+  uploadedDocuments    Document[]
+  issuedDispositions   Disposition[]        @relation("DispositionIssuer")
+  assignments          Assignment[]         @relation("AssignmentAssignee")
+  assignedByMe         Assignment[]         @relation("AssignmentAssignedBy")
+  workUpdates          WorkUpdate[]
+  outgoingCreated      OutgoingLetter[]     @relation("OutgoingCreatedBy")
+  outgoingReviewed     OutgoingLetter[]     @relation("OutgoingReviewedBy")
+  outgoingFinalized    OutgoingLetter[]     @relation("OutgoingFinalizedBy")
+  templatesCreated     DocumentTemplate[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+  corrections          MetadataCorrection[]
+  extractionJobs       ExtractionJob[]
+  reviewedResults      ExtractionResult[]
+
+  @@index([isActive])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  name        String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  code        String           @unique
+  description String
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Session {
+  id         String   @id // sha256 of the opaque cookie token
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  csrfToken  String
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id          String    @id // sha256 of the token
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdById String?
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------- incoming letters
+
+model IncomingLetter {
+  id               String           @id @default(cuid())
+  agendaNumber     String?          @unique
+  agendaYear       Int?
+  agendaSeq        Int?
+  status           LetterStatus     @default(DRAFT)
+  processingStatus ProcessingStatus @default(UPLOADED)
+  confidentiality  Confidentiality  @default(BIASA)
+  priority         Priority         @default(NORMAL)
+
+  // Working / final metadata (only treated as official once verifiedAt is set)
+  letterType     LetterType?
+  letterNumber   String?
+  letterDate     DateTime?   @db.Date
+  receivedDate   DateTime    @default(now()) @db.Date
+  senderName     String?
+  recipientName  String?
+  subject        String?
+  attachmentText String?
+  eventDate      DateTime?   @db.Date
+  eventLocation  String?
+  summary        String?
+  category       String?
+  notes          String?
+
+  createdById   String
+  createdBy     User      @relation("LetterCreatedBy", fields: [createdById], references: [id])
+  verifiedById  String?
+  verifiedBy    User?     @relation("LetterVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt    DateTime?
+  registeredAt  DateTime?
+  forwardedToId String?
+  forwardedTo   User?     @relation("LetterForwardedTo", fields: [forwardedToId], references: [id])
+  forwardedAt   DateTime?
+  completedAt   DateTime?
+  archivedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  documents     Document[]
+  extractionJobs ExtractionJob[]
+  corrections   MetadataCorrection[]
+  dispositions  Disposition[]
+  outgoingLinks OutgoingLetterLink[]
+
+  @@index([status])
+  @@index([processingStatus])
+  @@index([receivedDate])
+  @@index([letterNumber, senderName])
+  @@index([forwardedToId])
+  @@index([createdById])
+  @@index([deletedAt])
+}
+
+model Document {
+  id               String       @id @default(cuid())
+  kind             DocumentKind
+  storageKey       String       @unique
+  originalName     String
+  mimeType         String
+  sizeBytes        Int
+  pageCount        Int?
+  checksumSha256   String
+  uploadedById     String
+  uploadedBy       User         @relation(fields: [uploadedById], references: [id])
+  incomingLetterId String?
+  incomingLetter   IncomingLetter? @relation(fields: [incomingLetterId], references: [id])
+  workUpdateId     String?
+  workUpdate       WorkUpdate?     @relation(fields: [workUpdateId], references: [id])
+  outgoingLetterId String?
+  outgoingLetter   OutgoingLetter? @relation("OutgoingDocuments", fields: [outgoingLetterId], references: [id])
+  templateId       String?         @unique
+  template         DocumentTemplate? @relation("TemplateFile", fields: [templateId], references: [id])
+  version          Int          @default(1)
+  createdAt        DateTime     @default(now())
+  deletedAt        DateTime?
+
+  extractionJobs ExtractionJob[]
+
+  @@index([incomingLetterId])
+  @@index([workUpdateId])
+  @@index([outgoingLetterId])
+  @@index([checksumSha256])
+}
+
+model ExtractionJob {
+  id               String           @id @default(cuid())
+  documentId       String
+  document         Document         @relation(fields: [documentId], references: [id])
+  incomingLetterId String
+  incomingLetter   IncomingLetter   @relation(fields: [incomingLetterId], references: [id])
+  status           JobStatus        @default(QUEUED)
+  requestedById    String?
+  requestedBy      User?            @relation(fields: [requestedById], references: [id])
+  provider         AiProvider?
+  requestedProvider AiProvider?
+  method           ExtractionMethod?
+  model            String?
+  promptVersion    String?
+  attempts         Int              @default(0)
+  maxAttempts      Int              @default(3)
+  nextRunAt        DateTime         @default(now())
+  lockedAt         DateTime?
+  lockedBy         String?
+  startedAt        DateTime?
+  finishedAt       DateTime?
+  durationMs       Int?
+  inputTokens      Int?
+  outputTokens     Int?
+  pagesProcessed   Int?
+  estimatedCostUsd Decimal?         @db.Decimal(12, 6)
+  errorCode        String?
+  errorMessage     String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  result ExtractionResult?
+
+  @@index([status, nextRunAt])
+  @@index([documentId])
+  @@index([incomingLetterId])
+}
+
+model ExtractionResult {
+  id               String    @id @default(cuid())
+  jobId            String    @unique
+  job              ExtractionJob @relation(fields: [jobId], references: [id])
+  rawOutput        Json?     // provider output, purged after retention period
+  rawPurgedAt      DateTime?
+  extractedTextChars Int?
+  normalizedFields Json
+  reviewFlags      Json
+  evidence         Json
+  reviewedById     String?
+  reviewedBy       User?     @relation(fields: [reviewedById], references: [id])
+  reviewedAt       DateTime?
+  createdAt        DateTime  @default(now())
+}
+
+model MetadataCorrection {
+  id               String           @id @default(cuid())
+  incomingLetterId String
+  incomingLetter   IncomingLetter   @relation(fields: [incomingLetterId], references: [id])
+  extractionResultId String?
+  field            String
+  previousValue    String?
+  newValue         String?
+  source           CorrectionSource
+  correctedById    String
+  correctedBy      User             @relation(fields: [correctedById], references: [id])
+  createdAt        DateTime         @default(now())
+
+  @@index([incomingLetterId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------- disposition & follow-up
+
+model Disposition {
+  id               String            @id @default(cuid())
+  incomingLetterId String
+  incomingLetter   IncomingLetter    @relation(fields: [incomingLetterId], references: [id])
+  issuerId         String
+  issuer           User              @relation("DispositionIssuer", fields: [issuerId], references: [id])
+  instruction      String
+  priority         Priority          @default(NORMAL)
+  dueDate          DateTime?         @db.Date
+  status           DispositionStatus @default(ACTIVE)
+  cancelReason     String?
+  completedAt      DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  assignments     Assignment[]
+  outgoingLetters OutgoingLetter[]
+
+  @@index([incomingLetterId])
+  @@index([issuerId])
+  @@index([status])
+}
+
+model Assignment {
+  id               String           @id @default(cuid())
+  dispositionId    String
+  disposition      Disposition      @relation(fields: [dispositionId], references: [id])
+  assigneeId       String
+  assignee         User             @relation("AssignmentAssignee", fields: [assigneeId], references: [id])
+  assignedById     String
+  assignedBy       User             @relation("AssignmentAssignedBy", fields: [assignedById], references: [id])
+  status           AssignmentStatus @default(ASSIGNED)
+  progressPercent  Int              @default(0)
+  dueDate          DateTime?        @db.Date
+  startedAt        DateTime?
+  submittedAt      DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  cancelReason     String?
+  reassignedFromId String?          @unique
+  reassignedFrom   Assignment?      @relation("Reassignment", fields: [reassignedFromId], references: [id])
+  reassignedTo     Assignment?      @relation("Reassignment")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  updates WorkUpdate[]
+
+  @@index([assigneeId, status])
+  @@index([dispositionId])
+  @@index([dueDate])
+}
+
+model WorkUpdate {
+  id              String         @id @default(cuid())
+  assignmentId    String
+  assignment      Assignment     @relation(fields: [assignmentId], references: [id])
+  authorId        String
+  author          User           @relation(fields: [authorId], references: [id])
+  type            WorkUpdateType
+  note            String?
+  progressPercent Int?
+  createdAt       DateTime       @default(now())
+
+  attachments Document[]
+
+  @@index([assignmentId])
+}
+
+// ---------------------------------------------------------------- outgoing letters
+
+model DocumentTemplate {
+  id             String       @id @default(cuid())
+  type           OutgoingType
+  name           String
+  version        Int
+  isActive       Boolean      @default(true)
+  isSample       Boolean      @default(false)
+  placeholders   Json         // PlaceholderDef[]
+  activeFrom     DateTime?    @db.Date
+  approvedByName String?
+  createdById    String
+  createdBy      User         @relation(fields: [createdById], references: [id])
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  file            Document?        @relation("TemplateFile")
+  outgoingLetters OutgoingLetter[]
+
+  @@unique([type, version])
+  @@index([type, isActive])
+}
+
+model OutgoingLetter {
+  id              String          @id @default(cuid())
+  type            OutgoingType
+  templateId      String
+  template        DocumentTemplate @relation(fields: [templateId], references: [id])
+  templateVersion Int
+  number          String?         @unique
+  numberYear      Int?
+  numberSeq       Int?
+  subject         String
+  recipient       String
+  data            Json
+  status          OutgoingStatus  @default(DRAFT)
+  confidentiality Confidentiality @default(BIASA)
+  dispositionId   String?
+  disposition     Disposition?    @relation(fields: [dispositionId], references: [id])
+  createdById     String
+  createdBy       User            @relation("OutgoingCreatedBy", fields: [createdById], references: [id])
+  reviewedById    String?
+  reviewedBy      User?           @relation("OutgoingReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt      DateTime?
+  reviewNote      String?
+  finalizedById   String?
+  finalizedBy     User?           @relation("OutgoingFinalizedBy", fields: [finalizedById], references: [id])
+  finalizedAt     DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
+
+  documents Document[]           @relation("OutgoingDocuments")
+  links     OutgoingLetterLink[]
+
+  @@index([status])
+  @@index([createdById])
+  @@index([dispositionId])
+}
+
+model OutgoingLetterLink {
+  outgoingLetterId String
+  incomingLetterId String
+  outgoingLetter   OutgoingLetter @relation(fields: [outgoingLetterId], references: [id], onDelete: Cascade)
+  incomingLetter   IncomingLetter @relation(fields: [incomingLetterId], references: [id])
+
+  @@id([outgoingLetterId, incomingLetterId])
+  @@index([incomingLetterId])
+}
+
+// ---------------------------------------------------------------- system
+
+model Notification {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String
+  title      String
+  message    String
+  entityType String?
+  entityId   String?
+  link       String?
+  dedupeKey  String?   @unique
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  action     String
+  entityType String
+  entityId   String?
+  summary    String?
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model AiProviderConfig {
+  provider               AiProvider        @id
+  enabled                Boolean           @default(false)
+  model                  String
+  approvedForExternal    Boolean           @default(false)
+  allowedConfidentiality Confidentiality[] @default([])
+  timeoutMs              Int               @default(60000)
+  maxAttempts            Int               @default(3)
+  inputCostPerMTokUsd    Decimal?          @db.Decimal(10, 4)
+  outputCostPerMTokUsd   Decimal?          @db.Decimal(10, 4)
+  notes                  String?
+  updatedById            String?
+  updatedAt              DateTime          @updatedAt
+}
+
+model AppSetting {
+  key         String   @id
+  value       Json
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+model NumberSequence {
+  key       String
+  year      Int
+  lastValue Int    @default(0)
+
+  @@id([key, year])
+}
+
+model IdempotencyRecord {
+  key          String   @id // userId:route:clientKey
+  responseCode Int
+  responseBody Json
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+}

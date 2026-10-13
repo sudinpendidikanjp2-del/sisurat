@@ -1,0 +1,37 @@
+{
+  "name": "sisurat",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sistem Manajemen Surat, Disposisi, Tindak Lanjut, OCR dan Ekstraksi Metadata Berbasis AI",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "setup": "npm run db:migrate && npm run db:seed",
+    "dev": "concurrently -n api,worker,web -c blue,magenta,green \"npm run dev -w @sisurat/api\" \"npm run worker:dev -w @sisurat/api\" \"npm run dev -w @sisurat/web\"",
+    "dev:api": "npm run dev -w @sisurat/api",
+    "dev:web": "npm run dev -w @sisurat/web",
+    "worker": "npm run worker -w @sisurat/api",
+    "build": "npm run build -w @sisurat/api && npm run build -w @sisurat/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate -w @sisurat/api",
+    "db:migrate:dev": "npm run db:migrate:dev -w @sisurat/api",
+    "db:seed": "npm run db:seed -w @sisurat/api",
+    "db:generate": "npm run db:generate -w @sisurat/api"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "concurrently": "^9.2.1",
+    "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0"
+  }
+}
