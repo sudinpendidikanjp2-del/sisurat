@@ -75,6 +75,12 @@ Akun yang dibuat: `admin` (wajib ganti kata sandi saat login pertama) dan penggu
 
 > Untuk dev satu proses tanpa worker terpisah: `WORKER_INLINE=true npm run dev:api`.
 
+**npm atau Yarn?** Jalur yang diuji utama adalah **npm** (versi dependency dikunci di `package-lock.json`).
+Yarn v1 (`yarn install`, `yarn dev`, `yarn test`, …) juga didukung dan sudah diuji, tetapi Yarn tidak membaca
+`package-lock.json` sehingga versi dependency bisa sedikit berbeda. Skrip root memanggil `npm run -w …`,
+jadi npm (terpasang bersama Node.js) tetap dibutuhkan. Prisma Client dibuat otomatis oleh `postinstall`
+di root; bila perlu jalankan ulang dengan `npm run db:generate`.
+
 ## Peran
 
 | Peran | Ringkas |

@@ -14,8 +14,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy && prisma generate",
     "db:migrate:dev": "prisma migrate dev",
-    "db:seed": "tsx src/seed/seed.ts",
-    "postinstall": "prisma generate"
+    "db:seed": "tsx src/seed/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

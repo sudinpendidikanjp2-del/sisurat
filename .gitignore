@@ -4,7 +4,7 @@ coverage/
 .env
 .env.*
 !.env.example
-storage/
+/storage/
 apps/api/storage/
 apps/api/src/generated/
 *.log

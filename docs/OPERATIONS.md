@@ -112,5 +112,5 @@ Checksum dokumen tersimpan di kolom `Document.checksumSha256` untuk pemeriksaan 
 | Tidak bisa login setelah beberapa kali salah | Kunci akun 15 menit | Tunggu, atau admin → Pengguna → buka kunci |
 | Login gagal di produksi lewat HTTP | `COOKIE_SECURE=true` butuh HTTPS | Gunakan HTTPS |
 | Pratinjau PDF kosong | Browser tanpa penampil PDF / plugin diblokir | Gunakan tombol *Buka di tab baru* atau *Unduh* |
-| `prisma generate` gagal saat install | Schema tidak ditemukan | Jalankan dari root repo; pastikan `prisma/schema.prisma` ada |
+| `prisma generate` gagal saat install (mis. `Cannot find module …\\node_modules\\node_modules\\prisma\\build\\index.js` di Windows/Yarn) | Versi lama menjalankan `prisma generate` dari dalam workspace | Tarik versi terbaru (generate kini dijalankan dari root), hapus `node_modules`, install ulang; atau jalankan `npm run db:generate` dari root |
 | Upload ditolak “tidak sesuai dengan isinya” | Ekstensi tidak cocok dengan isi (mis. PNG bernama .pdf) | Simpan ulang berkas dengan format yang benar |
