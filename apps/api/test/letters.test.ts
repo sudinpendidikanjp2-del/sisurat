@@ -86,7 +86,8 @@ describe('manual registration (no AI)', () => {
     expect(letter.verifiedById).toBe(tu.userId);
     expect(letter.letterNumber).not.toBe(letter.agendaNumber);
     // a second verification is rejected
-    expect((await api.post(`/api/incoming-letters/${id}/verify`, { ...res.json(), letterNumber: 'B-12/X/2026', letterDate: '2026-10-05', receivedDate: '2026-10-07', senderName: 'Kementerian Contoh', recipientName: 'Kepala Kantor', subject: 'x' })).statusCode).toBe(409);
+    const again = { letterNumber: 'B-12/X/2026', letterDate: '2026-10-05', receivedDate: '2026-10-07', senderName: 'Kementerian Contoh', recipientName: 'Kepala Kantor', subject: 'x' };
+    expect((await api.post(`/api/incoming-letters/${id}/verify`, again)).statusCode).toBe(409);
   });
 
   it('agenda numbers are sequential and unique', async () => {

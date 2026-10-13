@@ -78,7 +78,7 @@ describe('full follow-up flow (AT-08)', () => {
 
     // submitting does not complete the task
     expect((await s1.post(`/api/assignments/${aid}/updates`, { note: 'Selesai disusun', progressPercent: 100, submitForReview: true })).statusCode).toBe(201);
-    let a = await prisma.assignment.findUniqueOrThrow({ where: { id: aid } });
+    const a = await prisma.assignment.findUniqueOrThrow({ where: { id: aid } });
     expect(a.status).toBe('WAITING_REVIEW');
     expect(await status(letterId)).toBe('WAITING_REVIEW');
 
@@ -93,10 +93,10 @@ describe('full follow-up flow (AT-08)', () => {
 
     await s1.post(`/api/assignments/${aid}/updates`, { note: 'Daftar hadir dilampirkan', submitForReview: true });
     expect((await L.post(`/api/assignments/${aid}/review`, { decision: 'APPROVE', note: 'Baik' })).statusCode).toBe(200);
-    a = await prisma.assignment.findUniqueOrThrow({ where: { id: aid }, include: { disposition: true, updates: true } });
-    expect(a.status).toBe('COMPLETED');
-    expect(a.disposition.status).toBe('COMPLETED');
-    expect(a.updates.map((u) => u.type)).toEqual(['STARTED', 'PROGRESS', 'SUBMITTED', 'REVISION_REQUESTED', 'SUBMITTED', 'APPROVED']);
+    const done = await prisma.assignment.findUniqueOrThrow({ where: { id: aid }, include: { disposition: true, updates: { orderBy: { createdAt: 'asc' } } } });
+    expect(done.status).toBe('COMPLETED');
+    expect(done.disposition.status).toBe('COMPLETED');
+    expect(done.updates.map((u) => u.type)).toEqual(['STARTED', 'PROGRESS', 'SUBMITTED', 'REVISION_REQUESTED', 'SUBMITTED', 'APPROVED']);
     expect(await status(letterId)).toBe('COMPLETED');
 
     expect((await client(ctx.app, tu).post(`/api/incoming-letters/${letterId}/archive`, { note: 'Selesai' })).statusCode).toBe(200);

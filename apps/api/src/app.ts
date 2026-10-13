@@ -39,8 +39,11 @@ export async function buildApp(deps: Deps, opts: BuildOptions = {}): Promise<Fas
         defaultSrc: ["'self'"],
         frameAncestors: ["'self'"],
         objectSrc: ["'self'"],
+        // Only meaningful behind HTTPS; on a plain-HTTP dev/LAN setup it would break requests.
+        upgradeInsecureRequests: env.COOKIE_SECURE ? [] : null,
       },
     },
+    strictTransportSecurity: env.COOKIE_SECURE,
     crossOriginResourcePolicy: { policy: 'same-origin' },
   });
   await app.register(cookie);

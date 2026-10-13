@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { changePasswordSchema, loginSchema, resetPasswordSchema } from '@sisurat/shared';
 import type { Deps } from '../../lib/deps';
 import { hashPassword, randomToken, sha256, verifyPassword } from '../../lib/crypto';
@@ -31,7 +31,19 @@ export default async function authRoutes(app: FastifyInstance, deps: Deps) {
 
   app.post(
     '/api/auth/login',
-    { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } },
+    {
+      config: {
+        // Keyed by IP + username so many staff behind one office NAT are not blocked together;
+        // per-account lockout below stops password guessing on a single account.
+        rateLimit: {
+          max: 10,
+          timeWindow: '15 minutes',
+          hook: 'preHandler',
+          keyGenerator: (req: FastifyRequest) =>
+            `${req.ip}:${String((req.body as { username?: unknown } | undefined)?.username ?? '').toLowerCase().slice(0, 100)}`,
+        },
+      },
+    },
     async (req, reply) => {
       const body = parse(loginSchema, req.body);
       const username = body.username.toLowerCase();

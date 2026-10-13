@@ -11,6 +11,7 @@ import { ProviderError } from '../../src/ai/types';
 import { seedBase, seedDemo } from '../../src/seed/seed';
 import { drainQueue } from '../../src/jobs/extraction';
 import type { Deps } from '../../src/lib/deps';
+import type { Prisma } from '../../src/generated/prisma/client';
 
 export const DEMO_PASSWORD = 'DemoPass123';
 export const ADMIN_PASSWORD = 'AdminPass123';
@@ -96,13 +97,13 @@ export async function approveProvider(provider: 'GEMINI' | 'CLAUDE', levels: ('B
   const row = await prisma.appSetting.findUniqueOrThrow({ where: { key: 'app' } });
   await prisma.appSetting.update({
     where: { key: 'app' },
-    data: { value: { ...(row.value as object), aiEnabled: true, primaryProvider: provider } },
+    data: { value: { ...(row.value as Prisma.JsonObject), aiEnabled: true, primaryProvider: provider } },
   });
 }
 
 export async function updateSettings(patch: Record<string, unknown>) {
   const row = await prisma.appSetting.findUniqueOrThrow({ where: { key: 'app' } });
-  await prisma.appSetting.update({ where: { key: 'app' }, data: { value: { ...(row.value as object), ...patch } } });
+  await prisma.appSetting.update({ where: { key: 'app' }, data: { value: { ...(row.value as Prisma.JsonObject), ...patch } as Prisma.InputJsonObject } });
 }
 
 export interface Session {
