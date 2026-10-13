@@ -89,32 +89,45 @@ Lihat `prisma/schema.prisma`. Entitas: `User`, `Role`, `Permission`, `RolePermis
 ## 8. Checklist implementasi terukur
 
 ### Tahap 1 — Fondasi
-- [x] Monorepo, TypeScript, lint, test runner
-- [x] Prisma schema + migration awal + seed pengembangan
-- [x] Login/logout, sesi, CSRF, rate limit, lockout, reset password via token admin
-- [x] RBAC berbasis tabel + akses per objek
+- [x] Monorepo, TypeScript, ESLint, Vitest
+- [x] Prisma schema + migration awal + seed idempoten (tanpa kata sandi default)
+- [x] Login/logout, sesi server-side, CSRF, rate limit, lockout, ganti & reset kata sandi (token dari admin)
+- [x] RBAC berbasis tabel (dapat diubah admin) + akses per objek
 - [x] Register surat manual + unggah berkas privat + audit log
-- [x] Layout aplikasi (sidebar, header, breadcrumb, notifikasi)
+- [x] Layout aplikasi (sidebar, header, breadcrumb, notifikasi, responsif)
 
 ### Tahap 2 — OCR/AI
-- [x] Ekstraksi teks PDF lokal + parser heuristik
-- [x] Adapter Gemini, Claude, Tesseract; router kebijakan
-- [x] Worker job dengan retry/backoff/timeout, idempoten
-- [x] Halaman verifikasi berdampingan + pencatatan koreksi
-- [x] Pencatatan pemakaian token/halaman/biaya estimasi
+- [x] Ekstraksi teks PDF lokal + parser heuristik surat dinas
+- [x] Adapter Gemini, Claude, Tesseract; router kebijakan per provider & klasifikasi
+- [x] Worker job: retry/backoff/timeout/rate limit, idempoten, pemulihan job macet
+- [x] Halaman verifikasi berdampingan + flag + evidence + pencatatan koreksi
+- [x] Pencatatan provider/model/prompt/token/halaman/durasi/estimasi biaya
 
 ### Tahap 3 — Disposisi
 - [x] Disposisi dengan beberapa pelaksana, tenggat, prioritas
-- [x] Progres, bukti, ajukan pemeriksaan, setujui/minta revisi, batal dengan alasan, alih tugas
-- [x] Notifikasi dalam aplikasi + pengingat tenggat/terlambat
+- [x] Progres, bukti, ajukan, setujui/minta revisi, batal dengan alasan, alih tugas
+- [x] Notifikasi dalam aplikasi + pengingat tenggat/terlambat (deduplikasi)
 
 ### Tahap 4 — Surat keluar & arsip
-- [x] Templat DOCX berversi (5 jenis), deteksi placeholder
-- [x] Draft → pemeriksaan → disetujui → final, relasi ke surat masuk/disposisi
+- [x] Templat DOCX berversi untuk 5 jenis (templat CONTOH di seed), deteksi placeholder
+- [x] Draft → pemeriksaan → disetujui → final bernomor, relasi ke surat masuk/disposisi, versi dokumen
 - [x] Arsip, pencarian, filter, laporan + ekspor CSV, dashboard dari database
 
 ### Tahap 5 — Hardening
-- [x] Test otomatis (auth, otorisasi, upload, ekstraksi, retry, disposisi, DOCX, audit, pagination)
-- [x] Dokumentasi instalasi, API, arsitektur, provider AI, templat, backup, deployment, troubleshooting
-- [ ] Pilot dengan dokumen kantor nyata (butuh persetujuan organisasi)
-- [ ] Integrasi antivirus, email, konversi PDF (pekerjaan lanjutan)
+- [x] 78 test API (integrasi dengan PostgreSQL + unit), 9 test web, 2 skenario Playwright E2E
+- [x] Dokumentasi instalasi, API, arsitektur, provider AI, templat, backup/restore, deployment, troubleshooting
+- [ ] Uji build Docker (Dockerfile & profil compose ditulis, belum dijalankan: tidak ada Docker daemon di lingkungan pengembangan)
+- [ ] Pilot dengan dokumen kantor nyata dan uji provider AI sungguhan (butuh persetujuan organisasi & API key)
+
+## 9. Status implementasi & pekerjaan lanjutan
+
+Belum dikerjakan / di luar cakupan saat ini:
+
+- Pemindaian malware (ClamAV) — saat ini validasi magic bytes, ekstensi, ukuran, halaman, PDF terenkripsi/rusak ditolak.
+- Konversi DOCX → PDF dan pratinjau DOCX di browser.
+- Notifikasi email/kanal eksternal (hanya notifikasi dalam aplikasi).
+- Penghapusan permanen dokumen sesuai kebijakan retensi (menunggu kebijakan resmi).
+- Penyimpanan objek (S3-compatible) — antarmuka `DocumentStorage` sudah siap, implementasi baru disk lokal.
+- PWA/offline — sengaja tidak diaktifkan (dokumen privat tidak boleh di-cache di perangkat).
+- Rotasi/deskew gambar sebelum OCR; dukungan tulisan tangan.
+- Unit kerja belum dipakai untuk pembatasan akses (akses berbasis peran + keterlibatan per surat).

@@ -1,0 +1,60 @@
+# Pengembangan: `docker compose up -d db` lalu `npm run setup && npm run dev`.
+# Uji stack lengkap: `docker compose --profile app up -d --build`.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sisurat
+      POSTGRES_PASSWORD: sisurat
+      POSTGRES_DB: sisurat
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U sisurat']
+      interval: 5s
+      retries: 10
+
+  api:
+    profiles: ['app']
+    build: { context: ., target: api }
+    restart: unless-stopped
+    depends_on: { db: { condition: service_healthy } }
+    environment: &appenv
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DATABASE_URL: postgresql://sisurat:sisurat@db:5432/sisurat?schema=public
+      DOCUMENT_STORAGE_PATH: /data/storage
+      TRUST_PROXY: 'true'
+      # Ganti ke true bila diakses lewat HTTPS (wajib untuk production sungguhan).
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY:-}
+    volumes:
+      - storage:/data/storage
+    command: sh -c "npx prisma migrate deploy && node dist/server.js"
+
+  worker:
+    profiles: ['app']
+    build: { context: ., target: api }
+    restart: unless-stopped
+    depends_on: [api]
+    environment: *appenv
+    volumes:
+      - storage:/data/storage
+    command: node dist/worker.js
+
+  web:
+    profiles: ['app']
+    build: { context: ., target: web }
+    restart: unless-stopped
+    depends_on: [api]
+    ports:
+      - '127.0.0.1:8080:80'
+
+volumes:
+  pgdata:
+  storage:

@@ -23,7 +23,10 @@
     "db:migrate": "npm run db:migrate -w @sisurat/api",
     "db:migrate:dev": "npm run db:migrate:dev -w @sisurat/api",
     "db:seed": "npm run db:seed -w @sisurat/api",
-    "db:generate": "npm run db:generate -w @sisurat/api"
+    "db:generate": "npm run db:generate -w @sisurat/api",
+    "e2e": "playwright test",
+    "test:api": "npm run test -w @sisurat/api",
+    "test:web": "npm run test -w @sisurat/web"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
