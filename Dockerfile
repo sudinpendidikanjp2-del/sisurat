@@ -32,7 +32,6 @@ COPY --from=build /app/apps/api/src/generated ./apps/api/src/generated
 COPY --from=build /app/apps/api/dist ./apps/api/dist
 WORKDIR /app/apps/api
 RUN mkdir -p /data/storage && chown -R node:node /data
-USER node
 EXPOSE 3000
 CMD ["node", "dist/server.js"]
 
